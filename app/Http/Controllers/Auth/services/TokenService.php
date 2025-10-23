@@ -76,7 +76,6 @@ class TokenService
         return [
             'access_token' => $accessToken,
             'refresh_token' => $refreshToken,
-            'idRefreshToken' => $refreshTokenId,
             'expires_in' => $accessTtl,
         ];
     }
