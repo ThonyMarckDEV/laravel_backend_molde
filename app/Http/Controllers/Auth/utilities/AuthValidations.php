@@ -41,23 +41,6 @@ class AuthValidations
     }
 
     /**
-     * Validate refresh token ID and user ID for validation request.
-     *
-     * @param Request $request
-     * @return \Illuminate\Validation\Validator
-     */
-    public static function validateRefreshTokenValidation(Request $request)
-    {
-        return Validator::make($request->all(), [
-            'refresh_token_id' => 'required|integer',
-            'userID' => 'required|integer',
-        ], [
-            'refresh_token_id.required' => 'El ID del token de refresco es obligatorio.',
-            'userID.required' => 'El ID de usuario es obligatorio.',
-        ]);
-    }
-
-    /**
      * Validate logout request data.
      *
      * @param Request $request
@@ -65,11 +48,12 @@ class AuthValidations
      */
     public static function validateLogout(Request $request)
     {
+       
         return Validator::make($request->all(), [
-            'idToken' => 'required|integer|exists:refresh_tokens,id',
+            'refresh_token' => 'required|string',
         ], [
-            'idToken.required' => 'El ID del token es obligatorio.',
-            'idToken.exists' => 'El token especificado no existe.',
+            'refresh_token.required' => 'El token de refresco es obligatorio.',
         ]);
+
     }
 }
