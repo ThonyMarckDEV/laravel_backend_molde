@@ -122,7 +122,7 @@ class AuthController extends Controller
 
             $storedToken = DB::table('refresh_tokens')
                 ->where('id_Usuario', $user->id)
-                ->where('token', $request->refresh_token) 
+                ->where('refresh_token', $request->refresh_token) 
                 ->first();
 
             if (!$storedToken) {
@@ -145,7 +145,7 @@ class AuthController extends Controller
         } catch (\Firebase\JWT\ExpiredException $e) {
             Log::error('Refresh token expirado: ' . $e->getMessage());
             // Si expira, también lo borramos de la BD
-            DB::table('refresh_tokens')->where('token', $request->refresh_token)->delete();
+            DB::table('refresh_tokens')->where('refresh_token', $request->refresh_token)->delete();
             return response()->json([
                 'message' => 'Refresh token expirado',
             ], 401);
@@ -184,7 +184,7 @@ class AuthController extends Controller
         try {
 
             $refreshToken = DB::table('refresh_tokens')
-                ->where('token', $request->refresh_token)
+                ->where('refresh_token', $request->refresh_token)
                 ->first();
 
             if (!$refreshToken) {
@@ -197,7 +197,7 @@ class AuthController extends Controller
 
             if ($refreshToken->expires_at && now()->greaterThan($refreshToken->expires_at)) {
                 DB::table('refresh_tokens')
-                    ->where('token', $request->refresh_token)
+                    ->where('refresh_token', $request->refresh_token)
                     ->delete();
 
                 return response()->json([
@@ -238,7 +238,7 @@ class AuthController extends Controller
         }
 
         $deleted = DB::table('refresh_tokens')
-            ->where('token', $request->refresh_token)
+            ->where('refresh_token', $request->refresh_token)
             ->delete();
 
         if ($deleted) {
