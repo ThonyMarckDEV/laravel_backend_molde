@@ -32,7 +32,6 @@ class PasswordResetController extends Controller
             ], 400);
         }
 
-        // Find user by DNI through datos
         $user = User::with(['datos', 'datos.contactos'])
             ->whereHas('datos', function ($query) use ($request) {
                 $query->where('dni', $request->dni);
@@ -45,20 +44,17 @@ class PasswordResetController extends Controller
             ], 404);
         }
 
-        // Check if user role is not client (idRol != 2)
         if ($user->id_Rol !== 2) {
             return response()->json([
                 'message' => 'Si no eres cliente y olvidaste tu contraseña, pídele al administrador que la cambie.',
             ], 403);
         }
 
-        // Check for existing valid token and resend if found
         $existingTokenResult = PasswordResetService::checkExistingResetToken($user);
         if ($existingTokenResult) {
             return response()->json($existingTokenResult, $existingTokenResult['success'] ? 200 : 400);
         }
 
-        // Handle new password reset request
         $result = PasswordResetService::handlePasswordReset($user, $request->ip(), $request->userAgent());
         return response()->json($result, $result['success'] ? 200 : 400);
     }
@@ -135,7 +131,6 @@ class PasswordResetController extends Controller
             return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        // Check if the new password matches the user's DNI
         $dni = $user->datos->dni ?? '';
         if ($request->password === $dni) {
             return redirect()->back()
@@ -143,11 +138,9 @@ class PasswordResetController extends Controller
                 ->withInput();
         }
 
-        // Update password
         $user->password = Hash::make($request->password);
         $user->save();
 
-        // Delete reset token
         DB::table('password_reset_tokens')
             ->where('id_Usuario', $user->id)
             ->delete();
