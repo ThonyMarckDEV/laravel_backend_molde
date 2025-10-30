@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::post('/refresh', [AuthController::class, 'refresh']);
-
-Route::post('/validate-refresh-token', [AuthController::class, 'validateRefreshToken']);
+Route::post('/validate-tokens', [AuthController::class, 'validateTokens']);
 
 Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
 

@@ -5,19 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class RefreshToken extends Model
+class Token extends Model
 {
     use HasFactory;
 
-    protected $table = 'refresh_tokens';
+    protected $table = 'tokens';
     protected $fillable = [
         'id_Usuario',
         'refresh_token',
-        'expires_at',
+        'refresh_expires_at',
+        'access_token',
+        'access_expires_at',
+        'ip_address',
+        'device',
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'idUsuario');
+        return $this->belongsTo(User::class, 'id_Usuario');
     }
 }

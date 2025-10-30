@@ -62,13 +62,15 @@ class TokenService
         $accessToken = JWT::encode($accessPayload, $secret, 'HS256');
         $refreshToken = JWT::encode($refreshPayload, $secret, 'HS256');
 
-        // Insert new refresh token
-        DB::table('refresh_tokens')->insertGetId([
+        // Insertamos los tokens en la tabla tokens
+        DB::table('tokens')->insertGetId([
             'id_Usuario' => $user->id,
             'refresh_token' => $refreshToken,
+            'refresh_expires_at' => date('Y-m-d H:i:s', $now + $refreshTtl),
+            'access_token' => $accessToken,
+            'access_expires_at' => date('Y-m-d H:i:s', $now + $accessTtl),
             'ip_address' => $ipAddress,
             'device' => $userAgent,
-            'expires_at' => date('Y-m-d H:i:s', $now + $refreshTtl),
             'created_at' => date('Y-m-d H:i:s', $now),
             'updated_at' => date('Y-m-d H:i:s', $now),
         ]);

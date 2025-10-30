@@ -23,7 +23,7 @@ class UsuarioSeeder extends Seeder
 
         // 2. Insertamos el usuario con idDato relacionado
         DB::table('usuarios')->insert([
-            'username' => 'adminguevara',
+            'username' => 'admin',
             'password' => Hash::make('123456'),
             'id_Datos' => $idDato,
             'id_Rol' => 1, // Rol Admin

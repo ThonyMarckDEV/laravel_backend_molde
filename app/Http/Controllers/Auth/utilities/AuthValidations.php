@@ -41,6 +41,23 @@ class AuthValidations
     }
 
     /**
+     * Validate token pair request data (access and refresh).
+     *
+     * @param Request $request
+     * @return \Illuminate\Validation\Validator
+     */
+    public static function validateTokenPair(Request $request)
+    {
+        return Validator::make($request->all(), [
+            'refresh_token' => 'required|string',
+            'access_token' => 'required|string',
+        ], [
+            'refresh_token.required' => 'El token de refresco es obligatorio.',
+            'access_token.required' => 'El token de acceso es obligatorio.',
+        ]);
+    }
+
+    /**
      * Validate logout request data.
      *
      * @param Request $request
@@ -48,7 +65,7 @@ class AuthValidations
      */
     public static function validateLogout(Request $request)
     {
-       
+        
         return Validator::make($request->all(), [
             'refresh_token' => 'required|string',
         ], [
