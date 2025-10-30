@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Auth\Services; // Asumo que este es el namespace correcto
+namespace App\Http\Controllers\Auth\Services;
 
 use App\Models\User;
 use Firebase\JWT\JWT;
@@ -89,7 +89,7 @@ class TokenService
      * @param User $user
      * @param string $ipAddress
      * @param string $userAgent
-     * @param string $refreshToken // <- PARÁMETRO AÑADIDO
+     * @param string $refreshToken
      * @return string
      */
     public static function generateAccessToken(User $user, string $ipAddress, string $userAgent, string $refreshToken): string
