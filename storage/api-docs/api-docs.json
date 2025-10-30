@@ -1,24 +1,24 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "FICSULLANA BACKEND DOCUMENTATION",
-        "description": "FICSULLANA BACKEND DOCUMENTATION",
-        "version": "1.0"
+        "title": "API de Autenticación",
+        "description": "Maneja el login, validación de tokens y logout.",
+        "version": "1.0.0"
     },
     "servers": [
         {
-            "url": ""
+            "url": "http://my-default-host.com",
+            "description": "API Server"
         }
     ],
     "paths": {
         "/api/login": {
             "post": {
                 "tags": [
-                    "AUTH CONTROLLER"
+                    "Autenticación"
                 ],
-                "summary": "Iniciar sesión",
-                "description": "Autentica al usuario y devuelve un token JWT de acceso y refresh",
-                "operationId": "login",
+                "summary": "Iniciar sesión de usuario",
+                "operationId": "c373bc4cffa4a56fc64e3979b8ee7b96",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -31,12 +31,16 @@
                                 "properties": {
                                     "username": {
                                         "type": "string",
-                                        "example": "usuario123"
+                                        "example": "usuario.test"
                                     },
                                     "password": {
                                         "type": "string",
                                         "format": "password",
-                                        "example": "secreto123"
+                                        "example": "password123"
+                                    },
+                                    "remember_me": {
+                                        "type": "boolean",
+                                        "example": false
                                     }
                                 },
                                 "type": "object"
@@ -56,47 +60,10 @@
                                             "example": "Login exitoso"
                                         },
                                         "access_token": {
-                                            "type": "string",
-                                            "example": "eyJ0eXAiOiJKV1QiLCJhb..."
+                                            "type": "string"
                                         },
                                         "refresh_token": {
-                                            "type": "string",
-                                            "example": "eyJ0eXAiOiJKV1QiLCJhb..."
-                                        },
-                                        "token_type": {
-                                            "type": "string",
-                                            "example": "bearer"
-                                        },
-                                        "expires_in": {
-                                            "type": "integer",
-                                            "example": 3600
-                                        }
-                                    },
-                                    "type": "object"
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Datos inválidos",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "message": {
-                                            "type": "string",
-                                            "example": "Datos inválidos"
-                                        },
-                                        "errors": {
-                                            "type": "object",
-                                            "example": {
-                                                "username": [
-                                                    "El campo username es obligatorio."
-                                                ],
-                                                "password": [
-                                                    "El campo password es obligatorio."
-                                                ]
-                                            }
+                                            "type": "string"
                                         }
                                     },
                                     "type": "object"
@@ -105,20 +72,126 @@
                         }
                     },
                     "401": {
-                        "description": "Credenciales incorrectas",
+                        "description": "Usuario o contraseña incorrectos"
+                    },
+                    "403": {
+                        "description": "Error: estado del usuario inactivo"
+                    },
+                    "422": {
+                        "description": "Error de validación (campos faltantes)"
+                    }
+                }
+            }
+        },
+        "/api/validate-tokens": {
+            "post": {
+                "tags": [
+                    "Autenticación"
+                ],
+                "summary": "Validar tokens y renovar si es necesario",
+                "description": "Verifica la validez del par de tokens. Si el access token está expirado pero el refresh es válido, genera un nuevo access token.",
+                "operationId": "71f3fa8fefcb1a6013f4e48b1a0a3354",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "access_token",
+                                    "refresh_token"
+                                ],
+                                "properties": {
+                                    "access_token": {
+                                        "type": "string"
+                                    },
+                                    "refresh_token": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Tokens válidos o renovados",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "properties": {
+                                        "valid": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
                                         "message": {
                                             "type": "string",
-                                            "example": "Usuario o contraseña incorrectos"
+                                            "example": "OK, tokens validos / Access token renovado"
+                                        },
+                                        "access_token": {
+                                            "description": "Opcional: Se envía solo si el token fue renovado",
+                                            "type": "string"
                                         }
                                     },
                                     "type": "object"
                                 }
                             }
                         }
+                    },
+                    "400": {
+                        "description": "Datos inválidos (faltan tokens)"
+                    },
+                    "401": {
+                        "description": "Sesión no válida, expirada o discrepancia de tokens"
+                    }
+                }
+            }
+        },
+        "/api/logout": {
+            "post": {
+                "tags": [
+                    "Autenticación"
+                ],
+                "summary": "Cerrar sesión de usuario",
+                "description": "Invalida el refresh token eliminándolo de la base de datos.",
+                "operationId": "5ff2dc8b48bff52908d3821a0ecc9b3e",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "refresh_token"
+                                ],
+                                "properties": {
+                                    "refresh_token": {
+                                        "type": "string"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Logout exitoso",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "OK"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Error: No se encontró el token de refresco"
                     }
                 }
             }
@@ -126,8 +199,8 @@
     },
     "tags": [
         {
-            "name": "AUTH CONTROLLER",
-            "description": "AUTH CONTROLLER"
+            "name": "Autenticación",
+            "description": "Endpoints de autenticación de usuarios"
         }
     ]
 }

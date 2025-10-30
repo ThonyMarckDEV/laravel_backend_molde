@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 //SERVICIOS
-use App\Http\Controllers\Auth\services\TokenService; // Asegúrate que el namespace sea correcto
+use App\Http\Controllers\Auth\services\TokenService;
 use App\Http\Controllers\Auth\utilities\AuthValidations;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -15,23 +15,58 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 
-// Importaciones añadidas para la nueva lógica de validación
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
 
+use OpenApi\Annotations as OA;
 
+/**
+ * @OA\Info(
+ * version="1.0.0",
+ * title="API de Autenticación",
+ * description="Maneja el login, validación de tokens y logout."
+ * )
+ * @OA\Server(
+ * url=L5_SWAGGER_CONST_HOST,
+ * description="API Server"
+ * )
+ * @OA\Tag(
+ * name="Autenticación",
+ * description="Endpoints de autenticación de usuarios"
+ * )
+ */
 class AuthController extends Controller
 {
     /**
-     * Handle username/password login.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @OA\Post(
+     * path="/api/login",
+     * tags={"Autenticación"},
+     * summary="Iniciar sesión de usuario",
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * required={"username","password"},
+     * @OA\Property(property="username", type="string", example="usuario.test"),
+     * @OA\Property(property="password", type="string", format="password", example="password123"),
+     * @OA\Property(property="remember_me", type="boolean", example=false)
+     * )
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Login exitoso",
+     * @OA\JsonContent(
+     * @OA\Property(property="message", type="string", example="Login exitoso"),
+     * @OA\Property(property="access_token", type="string"),
+     * @OA\Property(property="refresh_token", type="string")
+     * )
+     * ),
+     * @OA\Response(response=401, description="Usuario o contraseña incorrectos"),
+     * @OA\Response(response=403, description="Error: estado del usuario inactivo"),
+     * @OA\Response(response=422, description="Error de validación (campos faltantes)")
+     * )
      */
     public function login(Request $request)
     {
-
-        // Validate request
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
@@ -77,15 +112,34 @@ class AuthController extends Controller
     }
 
     /**
-     * Validate access and refresh tokens.
-     * Si el access token está vencido pero el refresh es válido, lo renueva.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @OA\Post(
+     * path="/api/validate-tokens",
+     * tags={"Autenticación"},
+     * summary="Validar tokens y renovar si es necesario",
+     * description="Verifica la validez del par de tokens. Si el access token está expirado pero el refresh es válido, genera un nuevo access token.",
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * required={"access_token","refresh_token"},
+     * @OA\Property(property="access_token", type="string"),
+     * @OA\Property(property="refresh_token", type="string")
+     * )
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Tokens válidos o renovados",
+     * @OA\JsonContent(
+     * @OA\Property(property="valid", type="boolean", example=true),
+     * @OA\Property(property="message", type="string", example="OK, tokens validos / Access token renovado"),
+     * @OA\Property(property="access_token", type="string", description="Opcional: Se envía solo si el token fue renovado")
+     * )
+     * ),
+     * @OA\Response(response=400, description="Datos inválidos (faltan tokens)"),
+     * @OA\Response(response=401, description="Sesión no válida, expirada o discrepancia de tokens")
+     * )
      */
     public function validateTokens(Request $request)
     {
-        // 1. Validar que vengan ambos tokens
         $validator = AuthValidations::validateTokenPair($request);
         if ($validator->fails()) {
             return response()->json([
@@ -96,12 +150,10 @@ class AuthController extends Controller
         }
 
         try {
-            // 2. Buscar el refresh token en la BD
             $storedToken = DB::table('tokens')
                 ->where('refresh_token', $request->refresh_token)
                 ->first();
 
-            // 3. Validar si el Refresh Token existe en la BD
             if (!$storedToken) {
                 Log::warning('validateTokens: Refresh token no encontrado en BD.');
                 return response()->json([
@@ -110,7 +162,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // 3b. Validar la expiración del REFRESH token usando la columna
             if (isset($storedToken->refresh_expires_at) && now()->greaterThan($storedToken->refresh_expires_at)) {
                 Log::warning('validateTokens: Refresh token expirado en BD.');
                 
@@ -122,7 +173,6 @@ class AuthController extends Controller
             }
 
 
-            // 4. Validar Access Token
             if (!isset($storedToken->access_token) || $storedToken->access_token !== $request->access_token) {
                 Log::warning('validateTokens: Access token no coincide con el de la BD. UserID: ' . $storedToken->id_Usuario);
                 return response()->json([
@@ -131,7 +181,6 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // 5. Verificar expiración de Access Token (JWT)
             $secret = config('jwt.secret');
             if (!$secret) {
                 Log::error('validateTokens: JWT_SECRET no está definido');
@@ -139,17 +188,14 @@ class AuthController extends Controller
             }
 
             try {
-                // Intentamos decodificar el ACCESS token para chequear su 'exp' claim
                 JWT::decode($request->access_token, new Key($secret, 'HS256'));
 
-                // Tokens 100% válidos y vigentes
                 return response()->json([
                     'valid' => true,
                     'message' => 'OK, tokens validos',
                 ], 200);
 
             } catch (ExpiredException $e) {
-                // El Access Token coincidía pero está expirado -> Renovar
                 Log::info('validateTokens: Access token expirado, renovando... UserID: ' . $storedToken->id_Usuario);
 
                 $user = User::find($storedToken->id_Usuario);
@@ -158,7 +204,6 @@ class AuthController extends Controller
                     return response()->json(['valid' => false, 'message' => 'Usuario asociado no encontrado'], 404);
                 }
                 
-                // 1. Llamamos al servicio (ahora con 4 argumentos)
                 $newAccessToken = TokenService::generateAccessToken(
                     $user, 
                     $request->ip(), 
@@ -195,14 +240,30 @@ class AuthController extends Controller
 
 
     /**
-     * Handle user logout.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * @OA\Post(
+     * path="/api/logout",
+     * tags={"Autenticación"},
+     * summary="Cerrar sesión de usuario",
+     * description="Invalida el refresh token eliminándolo de la base de datos.",
+     * @OA\RequestBody(
+     * required=true,
+     * @OA\JsonContent(
+     * required={"refresh_token"},
+     * @OA\Property(property="refresh_token", type="string")
+     * )
+     * ),
+     * @OA\Response(
+     * response=200,
+     * description="Logout exitoso",
+     * @OA\JsonContent(
+     * @OA\Property(property="message", type="string", example="OK")
+     * )
+     * ),
+     * @OA\Response(response=404, description="Error: No se encontró el token de refresco")
+     * )
      */
     public function logout(Request $request)
     {
-        // ... (Tu código de logout sigue igual)
         $validator = AuthValidations::validateLogout($request);
         if ($validator->fails()) {
             return response()->json([
