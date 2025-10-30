@@ -63,7 +63,7 @@ class TokenService
         $refreshToken = JWT::encode($refreshPayload, $secret, 'HS256');
 
         // Insert new refresh token
-        $refreshTokenId = DB::table('refresh_tokens')->insertGetId([
+        DB::table('refresh_tokens')->insertGetId([
             'id_Usuario' => $user->id,
             'refresh_token' => $refreshToken,
             'ip_address' => $ipAddress,
