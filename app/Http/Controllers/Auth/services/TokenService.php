@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Auth\Services;
+namespace App\Http\Controllers\Auth\Services; // Asumo que este es el namespace correcto
 
 use App\Models\User;
 use Firebase\JWT\JWT;
@@ -84,13 +84,15 @@ class TokenService
 
     /**
      * Generate only an access token for a user (used for refresh).
+     * Y ACTUALIZA LA BASE DE DATOS.
      *
      * @param User $user
      * @param string $ipAddress
      * @param string $userAgent
+     * @param string $refreshToken // <- PARÁMETRO AÑADIDO
      * @return string
      */
-    public static function generateAccessToken(User $user, string $ipAddress, string $userAgent): string
+    public static function generateAccessToken(User $user, string $ipAddress, string $userAgent, string $refreshToken): string
     {
         $now = time();
         $accessTtl = config('jwt.ttl') * 60; // Access token TTL in seconds
@@ -116,6 +118,27 @@ class TokenService
         ];
 
         // Generate access token
-        return JWT::encode($accessPayload, $secret, 'HS256');
+        $newAccessToken = JWT::encode($accessPayload, $secret, 'HS256');
+
+        try {
+            DB::table('tokens')
+                ->where('refresh_token', $refreshToken)
+                ->update([
+                    'access_token' => $newAccessToken,
+                    'access_expires_at' => date('Y-m-d H:i:s', $now + $accessTtl), // Actualiza la expiración
+                    'ip_address' => $ipAddress,
+                    'device' => $userAgent,
+                    'updated_at' => date('Y-m-d H:i:s', $now)
+                ]);
+            
+            Log::info('Access token renovado y actualizado en BD para UserID: ' . $user->id);
+
+        } catch (\Exception $e) {
+            Log::error('Error al actualizar access token en BD: ' . $e->getMessage());
+            // Lanza la excepción para que el AuthController la capture si es necesario
+            throw new \Exception('Error al actualizar la sesión en la base de datos'); 
+        }
+
+        return $newAccessToken; // Devuelve el token generado
     }
 }

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 //SERVICIOS
-use App\Http\Controllers\Auth\services\TokenService;
+use App\Http\Controllers\Auth\services\TokenService; // Asegúrate que el namespace sea correcto
 use App\Http\Controllers\Auth\utilities\AuthValidations;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -30,6 +30,7 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+
         // Validate request
         $request->validate([
             'username' => 'required|string',
@@ -53,7 +54,6 @@ class AuthController extends Controller
                 ], 403);
             }
             
-            // --- CORREGIDO ---
             DB::table('tokens')
                 ->where('id_Usuario', $user->id)
                 ->delete();
@@ -61,19 +61,6 @@ class AuthController extends Controller
 
 
             $tokens = TokenService::generateTokens($user, $request->remember_me ?? false, $request->ip(), $request->userAgent());
-
-
-            // Asegura que el access_token se guarde en la BD junto al refresh_token
-            if (isset($tokens['refresh_token']) && isset($tokens['access_token'])) {
-                // --- CORREGIDO ---
-                DB::table('tokens')
-                    ->where('refresh_token', $tokens['refresh_token'])
-                    // Asumiendo que generateTokens ya insertó el refresh_token
-                    ->update(['access_token' => $tokens['access_token']]); 
-                Log::info('Access token almacenado en BD para idUsuario: ' . $user->id);
-            } else {
-                Log::error('TokenService::generateTokens no devolvió access_token o refresh_token');
-            }
 
             return response()->json([
                 'message' => 'Login exitoso',
@@ -110,12 +97,11 @@ class AuthController extends Controller
 
         try {
             // 2. Buscar el refresh token en la BD
-            // --- CORREGIDO ---
             $storedToken = DB::table('tokens')
                 ->where('refresh_token', $request->refresh_token)
                 ->first();
 
-            // 3. Validar Refresh Token
+            // 3. Validar si el Refresh Token existe en la BD
             if (!$storedToken) {
                 Log::warning('validateTokens: Refresh token no encontrado en BD.');
                 return response()->json([
@@ -124,15 +110,17 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            if ($storedToken->expires_at && now()->greaterThan($storedToken->expires_at)) {
+            // 3b. Validar la expiración del REFRESH token usando la columna
+            if (isset($storedToken->refresh_expires_at) && now()->greaterThan($storedToken->refresh_expires_at)) {
                 Log::warning('validateTokens: Refresh token expirado en BD.');
-                // --- CORREGIDO ---
+                
                 DB::table('tokens')->where('refresh_token', $request->refresh_token)->delete();
                 return response()->json([
                     'valid' => false,
                     'message' => 'Sesión expirada (refresh token vencido)',
                 ], 401);
             }
+
 
             // 4. Validar Access Token
             if (!isset($storedToken->access_token) || $storedToken->access_token !== $request->access_token) {
@@ -143,7 +131,7 @@ class AuthController extends Controller
                 ], 401);
             }
 
-            // 5. Verificar expiración de Access Token
+            // 5. Verificar expiración de Access Token (JWT)
             $secret = config('jwt.secret');
             if (!$secret) {
                 Log::error('validateTokens: JWT_SECRET no está definido');
@@ -151,7 +139,7 @@ class AuthController extends Controller
             }
 
             try {
-                // Intentamos decodificar. Si no lanza excepción, es válido y no está expirado.
+                // Intentamos decodificar el ACCESS token para chequear su 'exp' claim
                 JWT::decode($request->access_token, new Key($secret, 'HS256'));
 
                 // Tokens 100% válidos y vigentes
@@ -169,21 +157,22 @@ class AuthController extends Controller
                     Log::error('validateTokens: Usuario no encontrado para id_Usuario: ' . $storedToken->id_Usuario);
                     return response()->json(['valid' => false, 'message' => 'Usuario asociado no encontrado'], 404);
                 }
-
-                $newAccessToken = TokenService::generateAccessToken($user, $request->ip(), $request->userAgent());
-
-                // Guardar el nuevo access token en la BD
-                // --- CORREGIDO ---
-                DB::table('tokens')
-                    ->where('refresh_token', $request->refresh_token)
-                    ->update(['access_token' => $newAccessToken]);
                 
-                Log::info('validateTokens: Nuevo access token guardado en BD. UserID: ' . $storedToken->id_Usuario);
+                // 1. Llamamos al servicio (ahora con 4 argumentos)
+                $newAccessToken = TokenService::generateAccessToken(
+                    $user, 
+                    $request->ip(), 
+                    $request->userAgent(), 
+                    $request->refresh_token
+                );
+                
+                Log::info('validateTokens: Nuevo access token generado por TokenService. UserID: ' . $storedToken->id_Usuario);
+
 
                 return response()->json([
-                    'valid' => true, // La sesión es válida, solo se renovó el token
+                    'valid' => true, 
                     'message' => 'Access token renovado',
-                    'access_token' => $newAccessToken, // Devolvemos el nuevo token
+                    'access_token' => $newAccessToken, 
                 ], 200);
                 
             } catch (SignatureInvalidException $e) {
@@ -213,6 +202,7 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
+        // ... (Tu código de logout sigue igual)
         $validator = AuthValidations::validateLogout($request);
         if ($validator->fails()) {
             return response()->json([
@@ -221,7 +211,6 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // --- CORREGIDO ---
         $deleted = DB::table('tokens')
             ->where('refresh_token', $request->refresh_token)
             ->delete();
