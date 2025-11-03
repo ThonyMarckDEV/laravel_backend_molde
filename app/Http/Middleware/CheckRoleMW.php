@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth; 
 
 class CheckRoleMW
 {
@@ -12,22 +13,34 @@ class CheckRoleMW
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  string  $role
+     * @param  string  $role  
      * @return mixed
      */
     public function handle(Request $request, Closure $next, $role)
     {
-        // Verificar que el usuario está autenticado y el payload está disponible
-        if (!$request->auth || !isset($request->auth->rol)) {
+        // 1. Verificar si el usuario está autenticado
+        if (!Auth::check()) {
+            return response()->json(['message' => 'No autorizado (No autenticado)'], 401);
+        }
+
+        // 2. Obtener el payload  del token JWT
+        $payload = auth()->payload();
+
+        // 3. Obtener el rol desde el payload
+        $userRole = $payload->get('rol');
+
+        // 4. Verificar si el claim 'rol' existe en el token
+        if (!$userRole) {
             return response()->json([
-                'message' => 'No autorizado'
+                'message' => 'No autorizado (El token no contiene un rol)'
             ], 403);
         }
 
-        // Verificar que el rol coincida
-        if ($request->auth->rol !== $role) {
+        // 5. Verificar que el rol coincida
+        if ($userRole !== $role) {
             return response()->json([
-                'message' => 'Acceso denegado. Se requiere rol: ' . $role
+                'message' => 'Acceso denegado. Se requiere rol: ' . $role,
+                'tu_rol_es' => $userRole
             ], 403);
         }
 

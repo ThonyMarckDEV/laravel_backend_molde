@@ -17,8 +17,9 @@ use Illuminate\Support\Facades\Log;
 
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
-
+use Illuminate\Support\Facades\Auth;
 use OpenApi\Annotations as OA;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 /**
  * @OA\Info(
@@ -239,51 +240,51 @@ class AuthController extends Controller
     }
 
 
-    /**
-     * @OA\Post(
-     * path="/api/logout",
-     * tags={"Autenticación"},
-     * summary="Cerrar sesión de usuario",
-     * description="Invalida el refresh token eliminándolo de la base de datos.",
-     * @OA\RequestBody(
-     * required=true,
-     * @OA\JsonContent(
-     * required={"refresh_token"},
-     * @OA\Property(property="refresh_token", type="string")
-     * )
-     * ),
-     * @OA\Response(
-     * response=200,
-     * description="Logout exitoso",
-     * @OA\JsonContent(
-     * @OA\Property(property="message", type="string", example="OK")
-     * )
-     * ),
-     * @OA\Response(response=404, description="Error: No se encontró el token de refresco")
-     * )
-     */
     public function logout(Request $request)
     {
-        $validator = AuthValidations::validateLogout($request);
-        if ($validator->fails()) {
-            return response()->json([
-                'message' => 'Datos inválidos',
-                'errors' => $validator->errors(),
-            ], 400);
-        }
+        try {
+            $userId = Auth::id();
+            
+            $tokens = DB::table('tokens')
+                ->where('id_Usuario', $userId)
+                ->select('access_token', 'refresh_token')
+                ->first();
 
-        $deleted = DB::table('tokens')
-            ->where('refresh_token', $request->refresh_token)
-            ->delete();
+            if ($tokens) {
+                $access_token = $tokens->access_token;
+                $refresh_token = $tokens->refresh_token;
 
-        if ($deleted) {
+                // Revocar tokens válidos
+                try {
+                    if ($access_token) {
+                        JWTAuth::setToken($access_token)->invalidate(true);
+                    }
+                } catch (\Exception $e) {
+                    // Ignorar si ya estaba invalidado
+                }
+
+                try {
+                    if ($refresh_token) {
+                        JWTAuth::setToken($refresh_token)->invalidate(true);
+                    }
+                } catch (\Exception $e) {
+                    // Ignorar si ya estaba invalidado
+                }
+
+                DB::table('tokens')
+                    ->where('id_Usuario', $userId)
+                    ->delete();
+            }
+
             return response()->json([
-                'message' => 'OK',
+                'message' => 'Sesión cerrada, tokens revocados y registro eliminado correctamente',
             ], 200);
-        }
 
-        return response()->json([
-            'message' => 'Error: No se encontró el token de refresco',
-        ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al cerrar sesión',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }

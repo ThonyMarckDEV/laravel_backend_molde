@@ -25,8 +25,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'checkRolesMW' => CheckRolesMW::class,
             //MIDDLEWARE PARA ROL ADMIN Y USUARIO
             'CheckRolesMW_ADMIN_USUARIO' => CheckRolesMW_ADMIN_USUARIO::class,
-
-            'auth.jwt' => JWTAuthMiddleware::class,
             //MIDDLEWARE CORS
             'cors' => CorsMiddleware::class,
         ]);

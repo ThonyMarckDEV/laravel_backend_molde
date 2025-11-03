@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CheckRolesMW
 {
@@ -12,30 +13,43 @@ class CheckRolesMW
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  string  ...$roles
+     * @param  string  ...$roles 
      * @return mixed
      */
     public function handle(Request $request, Closure $next, ...$roles)
     {
-        // Si no se pasan roles como parámetros, permitimos los roles cliente y manager por defecto
+
         if (empty($roles)) {
-            $roles = ['cliente', 'admin' ,'asesor' , 'auditor' , 'superadmin', 'cajero' , 'jefe_negocios'];
+            $roles = ['usuario', 'admin'];
         }
 
-        // Verificar que el usuario está autenticado y el payload está disponible
-        if (!$request->auth || !isset($request->auth->rol)) {
+        // 2. Verificar que el usuario esté autenticado
+        if (!Auth::check()) {
+            return response()->json(['message' => 'No autorizado (No autenticado)'], 401);
+        }
+
+        // 3. Obtener el payload  del token JWT
+        $payload = auth()->payload();
+        
+        // 4. Obtener el rol que viene DENTRO del token
+        $userRole = $payload->get('rol');
+
+        // 5. Verificar si el claim 'rol' existe en el token
+        if (!$userRole) {
             return response()->json([
-                'message' => 'No autorizado'
+                'message' => 'No autorizado (El token no contiene un rol)'
             ], 403);
         }
 
-        // Verificar si el rol del usuario está en la lista de roles permitidos
-        if (!in_array($request->auth->rol, $roles)) {
+        // 6. Verificar si el rol del usuario está en la lista de roles permitidos
+
+        if (!in_array($userRole, $roles)) {
             return response()->json([
-                'message' => 'Acceso denegado. Se requiere uno de estos roles: ' . implode(', ', $roles)
+                'message' => 'Acceso denegado. Se requiere uno de estos roles: ' . implode(', ', $roles),
+                'tu_rol_es' => $userRole
             ], 403);
         }
-
+        
         return $next($request);
     }
 }
