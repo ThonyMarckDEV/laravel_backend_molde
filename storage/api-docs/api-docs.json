@@ -1,24 +1,29 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "API de Autenticación",
-        "description": "Maneja el login, validación de tokens y logout.",
+        "title": "API del Sistema de Moldes",
+        "description": "Documentación generada con Swagger para la API del proyecto de Moldes Frameworks.",
+        "contact": {
+            "name": "Antony Marck Mendoza Sanchez",
+            "email": "thonymarckdev@gmail.com"
+        },
         "version": "1.0.0"
     },
     "servers": [
         {
-            "url": "http://my-default-host.com",
-            "description": "API Server"
+            "url": "http://localhost:8000/api",
+            "description": "Servidor local de desarrollo"
         }
     ],
     "paths": {
-        "/api/login": {
+        "/login": {
             "post": {
                 "tags": [
                     "Autenticación"
                 ],
                 "summary": "Iniciar sesión de usuario",
-                "operationId": "c373bc4cffa4a56fc64e3979b8ee7b96",
+                "description": "Autentica un usuario y devuelve access_token y refresh_token",
+                "operationId": "ec9c379d2a959de66404708dd4a9322d",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -31,16 +36,15 @@
                                 "properties": {
                                     "username": {
                                         "type": "string",
-                                        "example": "usuario.test"
+                                        "example": "admin"
                                     },
                                     "password": {
                                         "type": "string",
-                                        "format": "password",
-                                        "example": "password123"
+                                        "example": "123456"
                                     },
                                     "remember_me": {
                                         "type": "boolean",
-                                        "example": false
+                                        "example": true
                                     }
                                 },
                                 "type": "object"
@@ -60,10 +64,12 @@
                                             "example": "Login exitoso"
                                         },
                                         "access_token": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                                         },
                                         "refresh_token": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
                                         }
                                     },
                                     "type": "object"
@@ -72,25 +78,51 @@
                         }
                     },
                     "401": {
-                        "description": "Usuario o contraseña incorrectos"
+                        "description": "Credenciales incorrectas",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Usuario o contraseña incorrectos"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     },
                     "403": {
-                        "description": "Error: estado del usuario inactivo"
+                        "description": "Usuario inactivo",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Error: estado del usuario inactivo"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
                     },
-                    "422": {
-                        "description": "Error de validación (campos faltantes)"
+                    "500": {
+                        "description": "Error interno del servidor"
                     }
                 }
             }
         },
-        "/api/validate-tokens": {
+        "/validate-tokens": {
             "post": {
                 "tags": [
                     "Autenticación"
                 ],
-                "summary": "Validar tokens y renovar si es necesario",
-                "description": "Verifica la validez del par de tokens. Si el access token está expirado pero el refresh es válido, genera un nuevo access token.",
-                "operationId": "71f3fa8fefcb1a6013f4e48b1a0a3354",
+                "summary": "Validar tokens JWT",
+                "description": "Valida el access_token y refresh_token. Si el access_token expiró, genera uno nuevo.",
+                "operationId": "903866e260ae41b4085b50ae80f5f10d",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -102,10 +134,12 @@
                                 ],
                                 "properties": {
                                     "access_token": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                                     },
                                     "refresh_token": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "example": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
                                     }
                                 },
                                 "type": "object"
@@ -126,11 +160,31 @@
                                         },
                                         "message": {
                                             "type": "string",
-                                            "example": "OK, tokens validos / Access token renovado"
+                                            "example": "Access token renovado"
                                         },
                                         "access_token": {
-                                            "description": "Opcional: Se envía solo si el token fue renovado",
-                                            "type": "string"
+                                            "type": "string",
+                                            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tokens inválidos o expirados",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "valid": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Sesión expirada (refresh token vencido)"
                                         }
                                     },
                                     "type": "object"
@@ -139,40 +193,22 @@
                         }
                     },
                     "400": {
-                        "description": "Datos inválidos (faltan tokens)"
+                        "description": "Datos inválidos"
                     },
-                    "401": {
-                        "description": "Sesión no válida, expirada o discrepancia de tokens"
+                    "500": {
+                        "description": "Error al validar los tokens"
                     }
                 }
             }
         },
-        "/api/logout": {
+        "/logout": {
             "post": {
                 "tags": [
                     "Autenticación"
                 ],
-                "summary": "Cerrar sesión de usuario",
-                "description": "Invalida el refresh token eliminándolo de la base de datos.",
-                "operationId": "5ff2dc8b48bff52908d3821a0ecc9b3e",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "required": [
-                                    "refresh_token"
-                                ],
-                                "properties": {
-                                    "refresh_token": {
-                                        "type": "string"
-                                    }
-                                },
-                                "type": "object"
-                            }
-                        }
-                    }
-                },
+                "summary": "Cerrar sesión",
+                "description": "Revoca el access_token y refresh_token del usuario autenticado",
+                "operationId": "cc14526f9abd470d63047b1c05aef0c3",
                 "responses": {
                     "200": {
                         "description": "Logout exitoso",
@@ -182,7 +218,7 @@
                                     "properties": {
                                         "message": {
                                             "type": "string",
-                                            "example": "OK"
+                                            "example": "Sesión cerrada, tokens revocados y registro eliminado correctamente"
                                         }
                                     },
                                     "type": "object"
@@ -190,17 +226,120 @@
                             }
                         }
                     },
-                    "404": {
-                        "description": "Error: No se encontró el token de refresco"
+                    "500": {
+                        "description": "Error al cerrar sesión"
                     }
-                }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/roles/index": {
+            "get": {
+                "tags": [
+                    "Roles"
+                ],
+                "summary": "Listar roles paginados",
+                "description": "Obtiene una lista de roles del sistema con paginación.",
+                "operationId": "1470a64e1f525008a439e88ed3f219c7",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Número de página a mostrar",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lista de roles obtenida correctamente",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "current_page": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "nombre": {
+                                                        "type": "string",
+                                                        "example": "Administrador"
+                                                    },
+                                                    "descripcion": {
+                                                        "type": "string",
+                                                        "example": "Rol con todos los privilegios"
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string",
+                                                        "format": "date-time",
+                                                        "example": "2025-10-28T15:00:00Z"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        },
+                                        "per_page": {
+                                            "type": "integer",
+                                            "example": 10
+                                        },
+                                        "total": {
+                                            "type": "integer",
+                                            "example": 50
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "No autorizado o token inválido"
+                    },
+                    "500": {
+                        "description": "Error al obtener los roles"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "description": "Introduce tu token JWT. Ejemplo: 'Bearer {tu_token_aquí}'",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
             }
         }
     },
     "tags": [
         {
             "name": "Autenticación",
-            "description": "Endpoints de autenticación de usuarios"
+            "description": "Autenticación"
+        },
+        {
+            "name": "Roles",
+            "description": "Roles"
         }
     ]
 }

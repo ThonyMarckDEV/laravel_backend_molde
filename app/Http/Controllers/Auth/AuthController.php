@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Auth;
 
-//SERVICIOS
 use App\Http\Controllers\Auth\services\TokenService;
 use App\Http\Controllers\Auth\utilities\AuthValidations;
 use App\Http\Controllers\Controller;
@@ -22,7 +21,50 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
-   
+    /**
+     * @OA\Post(
+     *     path="/login",
+     *     summary="Iniciar sesión de usuario",
+     *     description="Autentica un usuario y devuelve access_token y refresh_token",
+     *     tags={"Autenticación"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"username","password"},
+     *             @OA\Property(property="username", type="string", example="admin"),
+     *             @OA\Property(property="password", type="string", example="123456"),
+     *             @OA\Property(property="remember_me", type="boolean", example=true)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Login exitoso",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Login exitoso"),
+     *             @OA\Property(property="access_token", type="string", example="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."),
+     *             @OA\Property(property="refresh_token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Credenciales incorrectas",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Usuario o contraseña incorrectos")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Usuario inactivo",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Error: estado del usuario inactivo")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Error interno del servidor"
+     *     )
+     * )
+     */
     public function login(Request $request)
     {
         $request->validate([
@@ -32,26 +74,18 @@ class AuthController extends Controller
         ]);
 
         try {
-
             $user = User::with('rol')->where('username', $request->username)->first();
 
             if (!$user || !Hash::check($request->password, $user->password)) {
-                return response()->json([
-                    'message' => 'Usuario o contraseña incorrectos',
-                ], 401);
+                return response()->json(['message' => 'Usuario o contraseña incorrectos'], 401);
             }
 
             if ($user->estado !== 1) {
-                return response()->json([
-                    'message' => 'Error: estado del usuario inactivo',
-                ], 403);
+                return response()->json(['message' => 'Error: estado del usuario inactivo'], 403);
             }
-            
-            DB::table('tokens')
-                ->where('id_Usuario', $user->id)
-                ->delete();
-            Log::info('Sesiones antiguas eliminadas para idUsuario: ' . $user->id);
 
+            DB::table('tokens')->where('id_Usuario', $user->id)->delete();
+            Log::info('Sesiones antiguas eliminadas para idUsuario: ' . $user->id);
 
             $tokens = TokenService::generateTokens($user, $request->remember_me ?? false, $request->ip(), $request->userAgent());
 
@@ -62,14 +96,51 @@ class AuthController extends Controller
             ], 200);
         } catch (\Exception $e) {
             Log::error('Error en login: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error al iniciar sesión',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['message' => 'Error al iniciar sesión', 'error' => $e->getMessage()], 500);
         }
     }
 
-   
+    /**
+     * @OA\Post(
+     *     path="/validate-tokens",
+     *     summary="Validar tokens JWT",
+     *     description="Valida el access_token y refresh_token. Si el access_token expiró, genera uno nuevo.",
+     *     tags={"Autenticación"},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"access_token","refresh_token"},
+     *             @OA\Property(property="access_token", type="string", example="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."),
+     *             @OA\Property(property="refresh_token", type="string", example="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Tokens válidos o renovados",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="valid", type="boolean", example=true),
+     *             @OA\Property(property="message", type="string", example="Access token renovado"),
+     *             @OA\Property(property="access_token", type="string", example="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Tokens inválidos o expirados",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="valid", type="boolean", example=false),
+     *             @OA\Property(property="message", type="string", example="Sesión expirada (refresh token vencido)")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Datos inválidos"
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Error al validar los tokens"
+     *     )
+     * )
+     */
     public function validateTokens(Request $request)
     {
         $validator = AuthValidations::validateTokenPair($request);
@@ -82,140 +153,71 @@ class AuthController extends Controller
         }
 
         try {
-            $storedToken = DB::table('tokens')
-                ->where('refresh_token', $request->refresh_token)
-                ->first();
-
+            $storedToken = DB::table('tokens')->where('refresh_token', $request->refresh_token)->first();
             if (!$storedToken) {
-                Log::warning('validateTokens: Refresh token no encontrado en BD.');
-                return response()->json([
-                    'valid' => false,
-                    'message' => 'Sesión no válida o revocada (refresh token no encontrado)',
-                ], 401);
+                return response()->json(['valid' => false, 'message' => 'Sesión no válida o revocada'], 401);
             }
 
             if (isset($storedToken->refresh_expires_at) && now()->greaterThan($storedToken->refresh_expires_at)) {
-                Log::warning('validateTokens: Refresh token expirado en BD.');
-                
                 DB::table('tokens')->where('refresh_token', $request->refresh_token)->delete();
-                return response()->json([
-                    'valid' => false,
-                    'message' => 'Sesión expirada (refresh token vencido)',
-                ], 401);
+                return response()->json(['valid' => false, 'message' => 'Sesión expirada'], 401);
             }
 
-
             if (!isset($storedToken->access_token) || $storedToken->access_token !== $request->access_token) {
-                Log::warning('validateTokens: Access token no coincide con el de la BD. UserID: ' . $storedToken->id_Usuario);
-                return response()->json([
-                    'valid' => false,
-                    'message' => 'Discrepancia de tokens. Sesión inválida.',
-                ], 401);
+                return response()->json(['valid' => false, 'message' => 'Discrepancia de tokens'], 401);
             }
 
             $secret = config('jwt.secret');
-            if (!$secret) {
-                Log::error('validateTokens: JWT_SECRET no está definido');
-                throw new \Exception('Clave secreta JWT no configurada');
-            }
+            JWT::decode($request->access_token, new Key($secret, 'HS256'));
 
-            try {
-                JWT::decode($request->access_token, new Key($secret, 'HS256'));
-
-                return response()->json([
-                    'valid' => true,
-                    'message' => 'OK, tokens validos',
-                ], 200);
-
-            } catch (ExpiredException $e) {
-                Log::info('validateTokens: Access token expirado, renovando... UserID: ' . $storedToken->id_Usuario);
-
-                $user = User::find($storedToken->id_Usuario);
-                if (!$user) {
-                    Log::error('validateTokens: Usuario no encontrado para id_Usuario: ' . $storedToken->id_Usuario);
-                    return response()->json(['valid' => false, 'message' => 'Usuario asociado no encontrado'], 404);
-                }
-                
-                $newAccessToken = TokenService::generateAccessToken(
-                    $user, 
-                    $request->ip(), 
-                    $request->userAgent(), 
-                    $request->refresh_token
-                );
-                
-                Log::info('validateTokens: Nuevo access token generado por TokenService. UserID: ' . $storedToken->id_Usuario);
-
-
-                return response()->json([
-                    'valid' => true, 
-                    'message' => 'Access token renovado',
-                    'access_token' => $newAccessToken, 
-                ], 200);
-                
-            } catch (SignatureInvalidException $e) {
-                Log::warning('validateTokens: Firma de Access token inválida. ' . $e->getMessage());
-                return response()->json(['valid' => false, 'message' => 'Access token inválido (firma)'], 401);
-            } catch (\Exception $e) {
-                Log::warning('validateTokens: Error al decodificar access token. ' . $e->getMessage());
-                return response()->json(['valid' => false, 'message' => 'Access token no procesable'], 401);
-            }
-
+            return response()->json(['valid' => true, 'message' => 'OK, tokens válidos'], 200);
+        } catch (ExpiredException $e) {
+            $user = User::find($storedToken->id_Usuario);
+            $newAccessToken = TokenService::generateAccessToken($user, $request->ip(), $request->userAgent(), $request->refresh_token);
+            return response()->json(['valid' => true, 'message' => 'Access token renovado', 'access_token' => $newAccessToken], 200);
         } catch (\Exception $e) {
-            Log::error('Error en validateTokens: ' . $e->getMessage());
-            return response()->json([
-                'valid' => false,
-                'message' => 'Error al validar los tokens',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['valid' => false, 'message' => 'Error al validar tokens', 'error' => $e->getMessage()], 500);
         }
     }
 
-
+    /**
+     * @OA\Post(
+     *     path="/logout",
+     *     summary="Cerrar sesión",
+     *     description="Revoca el access_token y refresh_token del usuario autenticado",
+     *     tags={"Autenticación"},
+     *     security={{"bearerAuth":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Logout exitoso",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Sesión cerrada, tokens revocados y registro eliminado correctamente")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Error al cerrar sesión"
+     *     )
+     * )
+     */
     public function logout(Request $request)
     {
         try {
             $userId = Auth::id();
-            
-            $tokens = DB::table('tokens')
-                ->where('id_Usuario', $userId)
-                ->select('access_token', 'refresh_token')
-                ->first();
+            $tokens = DB::table('tokens')->where('id_Usuario', $userId)->first();
 
             if ($tokens) {
-                $access_token = $tokens->access_token;
-                $refresh_token = $tokens->refresh_token;
-
-                // Revocar tokens válidos
                 try {
-                    if ($access_token) {
-                        JWTAuth::setToken($access_token)->invalidate(true);
-                    }
-                } catch (\Exception $e) {
-                    // Ignorar si ya estaba invalidado
-                }
+                    JWTAuth::setToken($tokens->access_token)->invalidate(true);
+                    JWTAuth::setToken($tokens->refresh_token)->invalidate(true);
+                } catch (\Exception $e) {}
 
-                try {
-                    if ($refresh_token) {
-                        JWTAuth::setToken($refresh_token)->invalidate(true);
-                    }
-                } catch (\Exception $e) {
-                    // Ignorar si ya estaba invalidado
-                }
-
-                DB::table('tokens')
-                    ->where('id_Usuario', $userId)
-                    ->delete();
+                DB::table('tokens')->where('id_Usuario', $userId)->delete();
             }
 
-            return response()->json([
-                'message' => 'Sesión cerrada, tokens revocados y registro eliminado correctamente',
-            ], 200);
-
+            return response()->json(['message' => 'Sesión cerrada, tokens revocados y registro eliminado correctamente'], 200);
         } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error al cerrar sesión',
-                'error' => $e->getMessage(),
-            ], 500);
+            return response()->json(['message' => 'Error al cerrar sesión', 'error' => $e->getMessage()], 500);
         }
     }
 }
