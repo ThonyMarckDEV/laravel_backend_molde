@@ -18,54 +18,11 @@ use Illuminate\Support\Facades\Log;
 use Firebase\JWT\ExpiredException;
 use Firebase\JWT\SignatureInvalidException;
 use Illuminate\Support\Facades\Auth;
-use OpenApi\Annotations as OA;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
-/**
- * @OA\Info(
- * version="1.0.0",
- * title="API de Autenticación",
- * description="Maneja el login, validación de tokens y logout."
- * )
- * @OA\Server(
- * url=L5_SWAGGER_CONST_HOST,
- * description="API Server"
- * )
- * @OA\Tag(
- * name="Autenticación",
- * description="Endpoints de autenticación de usuarios"
- * )
- */
 class AuthController extends Controller
 {
-    /**
-     * @OA\Post(
-     * path="/api/login",
-     * tags={"Autenticación"},
-     * summary="Iniciar sesión de usuario",
-     * @OA\RequestBody(
-     * required=true,
-     * @OA\JsonContent(
-     * required={"username","password"},
-     * @OA\Property(property="username", type="string", example="usuario.test"),
-     * @OA\Property(property="password", type="string", format="password", example="password123"),
-     * @OA\Property(property="remember_me", type="boolean", example=false)
-     * )
-     * ),
-     * @OA\Response(
-     * response=200,
-     * description="Login exitoso",
-     * @OA\JsonContent(
-     * @OA\Property(property="message", type="string", example="Login exitoso"),
-     * @OA\Property(property="access_token", type="string"),
-     * @OA\Property(property="refresh_token", type="string")
-     * )
-     * ),
-     * @OA\Response(response=401, description="Usuario o contraseña incorrectos"),
-     * @OA\Response(response=403, description="Error: estado del usuario inactivo"),
-     * @OA\Response(response=422, description="Error de validación (campos faltantes)")
-     * )
-     */
+   
     public function login(Request $request)
     {
         $request->validate([
@@ -112,33 +69,7 @@ class AuthController extends Controller
         }
     }
 
-    /**
-     * @OA\Post(
-     * path="/api/validate-tokens",
-     * tags={"Autenticación"},
-     * summary="Validar tokens y renovar si es necesario",
-     * description="Verifica la validez del par de tokens. Si el access token está expirado pero el refresh es válido, genera un nuevo access token.",
-     * @OA\RequestBody(
-     * required=true,
-     * @OA\JsonContent(
-     * required={"access_token","refresh_token"},
-     * @OA\Property(property="access_token", type="string"),
-     * @OA\Property(property="refresh_token", type="string")
-     * )
-     * ),
-     * @OA\Response(
-     * response=200,
-     * description="Tokens válidos o renovados",
-     * @OA\JsonContent(
-     * @OA\Property(property="valid", type="boolean", example=true),
-     * @OA\Property(property="message", type="string", example="OK, tokens validos / Access token renovado"),
-     * @OA\Property(property="access_token", type="string", description="Opcional: Se envía solo si el token fue renovado")
-     * )
-     * ),
-     * @OA\Response(response=400, description="Datos inválidos (faltan tokens)"),
-     * @OA\Response(response=401, description="Sesión no válida, expirada o discrepancia de tokens")
-     * )
-     */
+   
     public function validateTokens(Request $request)
     {
         $validator = AuthValidations::validateTokenPair($request);
