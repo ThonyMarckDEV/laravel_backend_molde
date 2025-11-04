@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckRolesMW;
 use App\Http\Middleware\CheckRolesMW_ADMIN_USUARIO;
 use App\Http\Middleware\CorsMiddleware;
 use App\Http\Middleware\JWTAuthMiddleware;
+use App\Http\Middleware\JWTMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,6 +28,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'CheckRolesMW_ADMIN_USUARIO' => CheckRolesMW_ADMIN_USUARIO::class,
             //MIDDLEWARE CORS
             'cors' => CorsMiddleware::class,
+            //MIDDLEWARE PARA VALIDAR TOKEN JWT
+            'jwt.middleware' => JWTMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

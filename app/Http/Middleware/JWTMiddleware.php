@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Exception;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\TokenExpiredException;
+use Tymon\JWTAuth\Exceptions\TokenInvalidException;
+use Tymon\JWTAuth\Exceptions\JWTException;
+
+class JWTMiddleware
+{
+    public function handle($request, Closure $next)
+    {
+        try {
+            JWTAuth::parseToken()->authenticate();
+        } catch (TokenExpiredException $e) {
+            return response()->json(['message' => 'El token ha expirado'], 401);
+        } catch (TokenInvalidException $e) {
+            return response()->json(['message' => 'Token inválido'], 401);
+        } catch (JWTException $e) {
+            return response()->json(['message' => 'Token no proporcionado'], 401);
+        }
+
+        return $next($request);
+    }
+}
