@@ -4,7 +4,8 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth; 
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CheckRoleMW
 {
@@ -13,34 +14,32 @@ class CheckRoleMW
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  string  $role  
+     * @param  string  $role  (El rol requerido enviado desde el archivo de rutas)
      * @return mixed
      */
     public function handle(Request $request, Closure $next, $role)
     {
-        // 1. Verificar si el usuario está autenticado
+        // 1. Verificar si el usuario está autenticado por JWT
+        // Esto ya valida que la FIRMA del token sea correcta.
         if (!Auth::check()) {
-            return response()->json(['message' => 'No autorizado (No autenticado)'], 401);
+            return response()->json([
+                'message' => 'No autorizado (Sesión inválida o expirada)'
+            ], 401);
         }
 
-        // 2. Obtener el payload  del token JWT
-        $payload = auth()->payload();
+        // 2. Obtener el usuario autenticado
+        $user = Auth::user();
 
-        // 3. Obtener el rol desde el payload
-        $userRole = $payload->get('rol');
+        Log::info("Rol de la BD: " . $user->rol->nombre);
 
-        // 4. Verificar si el claim 'rol' existe en el token
-        if (!$userRole) {
+        // 3. Verificación de Seguridad Máxima: 
+        // Consultamos el rol REAL en la base de datos a través de la relación.
+        // Esto evita que un usuario use un token antiguo con un rol que ya no tiene.
+        if (!$user || $user->rol->nombre !== $role) {
             return response()->json([
-                'message' => 'No autorizado (El token no contiene un rol)'
-            ], 403);
-        }
-
-        // 5. Verificar que el rol coincida
-        if ($userRole !== $role) {
-            return response()->json([
-                'message' => 'Acceso denegado. Se requiere rol: ' . $role,
-                'tu_rol_es' => $userRole
+                'status' => 'error',
+                'message' => 'Acceso denegado. Se requiere el rol: ' . $role,
+                'tu_rol_actual' => $user ? $user->rol->nombre : 'Ninguno'
             ], 403);
         }
 
