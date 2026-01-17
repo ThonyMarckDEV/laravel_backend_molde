@@ -9,7 +9,7 @@ return new class extends Migration {
     {
         Schema::create('tokens', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('id_Usuario');
+            $table->unsignedBigInteger('usuario_id');
             $table->text('refresh_token');
             $table->timestamp('refresh_expires_at')->nullable();
             $table->text('access_token');
@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->string('device')->nullable();
             $table->timestamps();
 
-            $table->foreign('id_Usuario')->references('id')->on('usuarios')->onDelete('cascade');
+            $table->foreign('usuario_id')->references('id')->on('usuarios')->onDelete('cascade');
         });
     }
 

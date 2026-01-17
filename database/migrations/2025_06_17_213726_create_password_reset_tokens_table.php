@@ -9,7 +9,7 @@ return new class extends Migration {
     {
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('id_Usuario');
+            $table->unsignedBigInteger('usuario_id');
             $table->string('token')->unique();
             $table->string('ip_address')->nullable();
             $table->string('device')->nullable();
@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->timestamps();
             
             // Foreign key
-            $table->foreign('id_Usuario')->references('id')->on('usuarios')->onDelete('cascade');
+            $table->foreign('usuario_id')->references('id')->on('usuarios')->onDelete('cascade');
         });
     }
 

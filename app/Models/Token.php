@@ -11,7 +11,7 @@ class Token extends Model
 
     protected $table = 'tokens';
     protected $fillable = [
-        'id_Usuario',
+        'usuario_id',
         'refresh_token',
         'refresh_expires_at',
         'access_token',
@@ -22,6 +22,6 @@ class Token extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'id_Usuario');
+        return $this->belongsTo(User::class, 'usuario_id');
     }
 }

@@ -24,10 +24,11 @@ class User extends Authenticatable implements JWTSubject
      * @var array<string>
      */
     protected $fillable = [
-        'username',
-        'password',
-        'id_Datos',
-        'id_Rol',
+        'username', 
+        'password', 
+        'datos_cliente_id', 
+        'datos_empleado_id', 
+        'rol_id', 
         'estado'
     ];
 
@@ -39,6 +40,8 @@ class User extends Authenticatable implements JWTSubject
     protected $hidden = [
         'password',
     ];
+
+    
 
     /**
      * Obtener los atributos que deben ser convertidos.
@@ -77,12 +80,14 @@ class User extends Authenticatable implements JWTSubject
         ];
     }
 
-    /**
-     * Relación con los datos personales
-     */
-    public function datos()
-    {
-        return $this->belongsTo(Datos::class, 'id_Datos', 'id');
+    // Relación con Clientes
+    public function datosCliente() {
+        return $this->belongsTo(DatosCliente::class, 'datos_cliente_id');
+    }
+
+    // Relación con Empleados
+    public function datosEmpleado() {
+        return $this->belongsTo(DatosEmpleado::class, 'datos_empleado_id');
     }
 
     /**
@@ -90,8 +95,7 @@ class User extends Authenticatable implements JWTSubject
      */
     public function rol()
     {
-        return $this->belongsTo(Rol::class, 'id_Rol', 'id');
+        return $this->belongsTo(Rol::class, 'rol_id', 'id');
     }
-
 
 }

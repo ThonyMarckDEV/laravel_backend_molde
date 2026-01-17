@@ -13,12 +13,14 @@ return new class extends Migration
     {
         Schema::create('contactos', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('id_Datos');
-            $table->string('telefonoMovil')->unique();
-            $table->string('correo')->nullable()->unique();
+            
+            $table->foreignId('datos_cliente_id')
+                ->constrained('datos_clientes')
+                ->onDelete('cascade');
+
+            $table->string('telefono')->nullable();
+            $table->string('correo')->nullable();
             $table->timestamps();
-        
-            $table->foreign('id_Datos')->references('id')->on('datos')->onDelete('cascade');
         });
     }
 
@@ -27,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('cliente_contactos');
+        Schema::dropIfExists('contactos');
     }
 };

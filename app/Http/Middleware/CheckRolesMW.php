@@ -30,7 +30,6 @@ class CheckRolesMW
         }
 
         // 3. OBTENER EL USUARIO Y SU ROL DESDE LA BASE DE DATOS
-        // No usamos $payload->get('rol') para evitar manipulaciones del cliente.
         $user = Auth::user();
         $userRoleDB = $user->rol ? $user->rol->nombre : null;
 

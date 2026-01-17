@@ -26,12 +26,12 @@ class PasswordResetService
 
         // Delete existing tokens
         DB::table('password_reset_tokens')
-            ->where('id_Usuario', $user->id)
+            ->where('usuario_id', $user->id)
             ->delete();
 
         // Store new reset token
         DB::table('password_reset_tokens')->insert([
-            'id_Usuario' => $user->id,
+            'usuario_id' => $user->id,
             'token' => $resetToken,
             'ip_address' => $ipAddress,
             'device' => $userAgent,
@@ -42,7 +42,7 @@ class PasswordResetService
 
         // Send reset email
         $resetUrl = config('app.url') . "/reset-password/{$user->id}/{$resetToken}";
-        $contacto = $user->datos->contactos->first();
+        $contacto = $user->datosCliente->contactos->first();
 
         if ($contacto && $contacto->correo) {
             Mail::to($contacto->correo)->send(new PasswordResetEmail($user, $resetUrl));
@@ -67,13 +67,13 @@ class PasswordResetService
     public static function checkExistingResetToken(User $user): ?array
     {
         $existingToken = DB::table('password_reset_tokens')
-            ->where('id_Usuario', $user->id)
+            ->where('usuario_id', $user->id)
             ->where('expires_at', '>', now())
             ->first();
 
         if ($existingToken) {
             $resetUrl = config('app.url') . "/reset-password/{$user->id}/{$existingToken->token}";
-            $contacto = $user->datos->contactos->first();
+            $contacto = $user->datosCliente->contactos->first();
 
             if ($contacto && $contacto->correo) {
                 Mail::to($contacto->correo)->send(new PasswordResetEmail($user, $resetUrl));

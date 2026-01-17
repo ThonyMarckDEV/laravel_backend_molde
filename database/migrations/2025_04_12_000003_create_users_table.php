@@ -9,16 +9,23 @@ return new class extends Migration {
     {
         Schema::create('usuarios', function (Blueprint $table) {
             $table->id();
-            $table->string('username')->unique()->nullable();
-            $table->string('password')->nullable();
-            $table->unsignedBigInteger('id_Datos')->nullable();
-            $table->unsignedBigInteger('id_Rol')->default(3); // Por defecto 3 que es cliente
-            $table->tinyInteger('estado')->default(1)->comment('0: Inactivo , 1: Activo, ');
-            $table->timestamps();
+            $table->string('username')->unique();
+            $table->string('password');
             
-            // Foreign keys
-            $table->foreign('id_Datos')->references('id')->on('datos')->onDelete('cascade');
-            $table->foreign('id_Rol')->references('id')->on('roles')->onDelete('restrict');
+            // Las dos llaves foráneas apuntando a sus tablas específicas
+            $table->foreignId('datos_cliente_id')
+                ->nullable()
+                ->constrained('datos_clientes')
+                ->onDelete('cascade');
+
+            $table->foreignId('datos_empleado_id')
+                ->nullable()
+                ->constrained('datos_empleados')
+                ->onDelete('cascade');
+
+            $table->foreignId('rol_id')->constrained('roles');
+            $table->boolean('estado')->default(true);
+            $table->timestamps();
         });
     }
 

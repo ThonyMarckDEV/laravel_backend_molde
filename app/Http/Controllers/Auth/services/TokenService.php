@@ -26,12 +26,16 @@ class TokenService
             //==================================================================================
             //Configuracion token acceso
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
+
+            $datos = $user->datosCliente ?? $user->datosEmpleado;
             
+            // Access Claims
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                'nombre' => $user->datos->nombre ?? 'N/A',
+                // Usamos el atributo dinámico que definimos en el modelo User
+                'nombre'   => $datos ? $datos->nombre : 'N/A',
                 'type' => 'access',
                 'exp'  => $accessExp
             ];
@@ -44,11 +48,13 @@ class TokenService
 
             $refreshExp = $now->copy()->addMinutes($refreshTTL)->timestamp;
             
+            // Refresh Claims
             $refreshClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'type' => 'refresh',
-                'exp'  => $refreshExp
+                'exp'  => $refreshExp,
+                'sede' => $user->sede->nombre ?? 'SuperAdmin',
             ];
 
             // Creamos el token de refresco.
@@ -57,7 +63,7 @@ class TokenService
 
             // Guardar en Base de Datos los tokens
             DB::table('tokens')->insert([
-                'id_Usuario' => $user->id,
+                'usuario_id' => $user->id,
                 'refresh_token' => $refreshToken,
                 'refresh_expires_at' => Carbon::createFromTimestamp($refreshExp),
                 'access_token' => $accessToken,
@@ -90,11 +96,13 @@ class TokenService
             $accessTTL = config('jwt.ttl'); // 5 minutos
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
 
+            $datos = $user->datosCliente ?? $user->datosEmpleado;
+
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                'nombre' => $user->datos->nombre ?? 'N/A',
+                'nombre'   => $datos ? $datos->nombre : 'N/A',
                 'type' => 'access',
                 'exp'  => $accessExp
             ];

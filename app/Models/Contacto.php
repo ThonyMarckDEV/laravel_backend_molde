@@ -12,13 +12,14 @@ class Contacto extends Model
     protected $table = 'contactos';
 
     protected $fillable = [
-        'id_Datos',
-        'telefonoMovil',
+        'datos_cliente_id',
+        'telefono',
         'correo'
     ];
 
-    public function datos()
+    public function datosCliente()
     {
-        return $this->belongsTo(Datos::class, 'id_Datos' , 'id');
+        // Ahora pertenece a DatosCliente
+        return $this->belongsTo(DatosCliente::class, 'datos_cliente_id');
     }
 }

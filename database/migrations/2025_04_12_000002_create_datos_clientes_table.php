@@ -8,13 +8,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('datos', function (Blueprint $table) {
+        Schema::create('datos_clientes', function (Blueprint $table) {
             $table->id();
             $table->string('nombre');
             $table->string('apellidoPaterno');
             $table->string('apellidoMaterno');
-            $table->string('sexo')->comment('M: Masculino, F: Femenino');
+            $table->string('estadoCivil');
+            $table->string('sexo');
             $table->string('dni', 9)->unique();
+            $table->date('fechaNacimiento');
+            $table->string('ruc', 11)->nullable()->unique();
             $table->timestamps();
         });
     }
