@@ -53,8 +53,7 @@ class TokenService
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'type' => 'refresh',
-                'exp'  => $refreshExp,
-                'sede' => $user->sede->nombre ?? 'SuperAdmin',
+                'exp'  => $refreshExp
             ];
 
             // Creamos el token de refresco.
