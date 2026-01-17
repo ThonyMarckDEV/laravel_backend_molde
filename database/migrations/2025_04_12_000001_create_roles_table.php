@@ -19,6 +19,7 @@ return new class extends Migration
         
         // Insertar roles por defecto
         DB::table('roles')->insert([
+            ['nombre' => 'superadmin', 'descripcion' => 'Super Administrador del sistema', 'estado' => true, 'created_at' => now(), 'updated_at' => now()],
             ['nombre' => 'admin', 'descripcion' => 'Administrador del sistema', 'estado' => true, 'created_at' => now(), 'updated_at' => now()],
             ['nombre' => 'usuario', 'descripcion' => 'Usuario del sistema', 'estado' => true, 'created_at' => now(), 'updated_at' => now()],
         ]);
