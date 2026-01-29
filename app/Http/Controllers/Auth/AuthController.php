@@ -58,9 +58,6 @@ class AuthController extends Controller
     // ==========================================
     public function refresh(Request $request)
     {
-
-        Log::info('Intento de Refresh. Cookies recibidas:', $request->cookies->all());
-
         // Obtener el token de la COOKIE
         $refreshToken = $request->cookie('refresh_token');
 
