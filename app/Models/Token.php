@@ -14,8 +14,6 @@ class Token extends Model
         'usuario_id',
         'refresh_token',
         'refresh_expires_at',
-        'access_token',
-        'access_expires_at',
         'ip_address',
         'device',
     ];

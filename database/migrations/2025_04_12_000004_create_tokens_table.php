@@ -12,8 +12,6 @@ return new class extends Migration {
             $table->unsignedBigInteger('usuario_id');
             $table->text('refresh_token');
             $table->timestamp('refresh_expires_at')->nullable();
-            $table->text('access_token');
-            $table->timestamp('access_expires_at')->nullable();
             $table->string('ip_address')->nullable();
             $table->string('device')->nullable();
             $table->timestamps();

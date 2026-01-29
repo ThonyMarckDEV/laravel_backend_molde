@@ -5,14 +5,14 @@ namespace App\Http\Controllers\Auth\services;
 use Illuminate\Support\Facades\DB;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
-class Logout
+class LogoutCliente
 {
     /**
      * Ejecuta la lógica de cierre de sesión.
      */
     public function execute($userId)
     {
-        $tokens = DB::table('tokens')->where('usuario_id', $userId)->first();
+        $tokens = DB::table('tokens')->where('id_Usuario', $userId)->first();
 
         if ($tokens) {
             // Intentar invalidar los tokens en JWTAuth (Blacklist)
@@ -28,7 +28,7 @@ class Logout
             }
 
             // Eliminar registro de la base de datos
-            DB::table('tokens')->where('usuario_id', $userId)->delete();
+            DB::table('tokens')->where('id_Usuario', $userId)->delete();
         }
 
         return true;

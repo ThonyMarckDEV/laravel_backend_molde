@@ -2,26 +2,20 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Http\Controllers\Auth\services\Login;
-use App\Http\Controllers\Auth\services\Logout;
-use App\Http\Controllers\Auth\utilities\AuthValidations;
+use App\Http\Controllers\Auth\services\LoginCliente;
+use App\Http\Controllers\Auth\services\TokenService;
 use App\Http\Controllers\Controller;
 use App\Models\User;
-
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-
-use Firebase\JWT\ExpiredException;
-use Illuminate\Support\Facades\Auth;
-
-use App\Http\Controllers\Auth\services\TokenService;
+use Illuminate\Support\Facades\Cookie;
 
 class AuthController extends Controller
 {
-
+     // ==========================================
+    // LOGIN
+    // ==========================================
     public function login(Request $request)
     {
         $request->validate([
@@ -31,9 +25,9 @@ class AuthController extends Controller
         ]);
 
         try {
-            $loginService = new Login();
+            $loginService = new LoginCliente();
             
-            // Delegamos toda la lógica al servicio
+            // El servicio ahora se encarga de todo (tokens + cookie generation)
             $response = $loginService->execute(
                 $request->username,
                 $request->password,
@@ -42,66 +36,116 @@ class AuthController extends Controller
                 $request->userAgent()
             );
 
-            return response()->json($response['data'], $response['status']);
+            // Si hay error (no es 200), devolvemos el JSON de error
+            if ($response['status'] !== 200) {
+                return response()->json($response['data'], $response['status']);
+            }
+
+            // Si es éxito, el servicio nos dio 'data' (access token) y 'cookie' (refresh token)
+            return response()
+                ->json($response['data'], 200)
+                ->withCookie($response['cookie']);
 
         } catch (\Exception $e) {
-            Log::error('Error crítico en AuthController@login: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al iniciar sesión', 'error' => $e->getMessage()], 500);
+            Log::error('Error en AuthController@login: ' . $e->getMessage());
+            return response()->json(['message' => 'Error al iniciar sesión'], 500);
         }
     }
 
-    public function validateTokens(Request $request)
+
+    // ==========================================
+    // REFRESH TOKEN (Ruta /api/refresh)
+    // ==========================================
+    public function refresh(Request $request)
     {
-        $validator = AuthValidations::validateTokenPair($request);
-        if ($validator->fails()) {
-            return response()->json([
-                'valid' => false,
-                'message' => 'Datos inválidos',
-                'errors' => $validator->errors(),
-            ], 400);
+        // Obtener el token de la COOKIE
+        $refreshToken = $request->cookie('refresh_token');
+
+        if (!$refreshToken) {
+            return response()->json(['message' => 'No se proporcionó refresh token (Cookie vacía)'], 401);
         }
 
         try {
-            $storedToken = DB::table('tokens')->where('refresh_token', $request->refresh_token)->first();
+            // Buscar en BD
+            $storedToken = DB::table('tokens')->where('refresh_token', $refreshToken)->first();
+
             if (!$storedToken) {
-                return response()->json(['valid' => false, 'message' => 'Sesión no válida o revocada'], 401);
+                // Si no existe, borramos la cookie por si acaso
+                return response()->json(['message' => 'Sesión inválida o revocada'], 401)
+                    ->withCookie(Cookie::forget('refresh_token'));
             }
 
+            // Validar Expiración
             if (isset($storedToken->refresh_expires_at) && now()->greaterThan($storedToken->refresh_expires_at)) {
-                DB::table('tokens')->where('refresh_token', $request->refresh_token)->delete();
-                return response()->json(['valid' => false, 'message' => 'Sesión expirada'], 401);
+                DB::table('tokens')->where('id', $storedToken->id)->delete();
+                return response()->json(['message' => 'Sesión expirada'], 401)
+                    ->withCookie(Cookie::forget('refresh_token'));
             }
 
-            if (!isset($storedToken->access_token) || $storedToken->access_token !== $request->access_token) {
-                return response()->json(['valid' => false, 'message' => 'Discrepancia de tokens'], 401);
+            // Generar NUEVO Access Token
+            $user = User::find($storedToken->id_Usuario);
+            if (!$user) {
+                return response()->json(['message' => 'Usuario no encontrado'], 401);
             }
 
-            $secret = config('jwt.secret');
-            JWT::decode($request->access_token, new Key($secret, 'HS256'));
+            $newAccessToken = TokenService::generateAccessToken(
+                $user, 
+                $request->ip(), 
+                $request->userAgent(), 
+                $refreshToken
+            );
 
-            return response()->json(['valid' => true, 'message' => 'OK, tokens válidos'], 200);
-        } catch (ExpiredException $e) {
-            $user = User::find($storedToken->usuario_id);
-            $newAccessToken = TokenService::generateAccessToken($user, $request->ip(), $request->userAgent(), $request->refresh_token);
-            return response()->json(['valid' => true, 'message' => 'Access token renovado', 'access_token' => $newAccessToken], 200);
+            // Retornar solo el Access Token (La cookie refresh se mantiene igual)
+            return response()->json([
+                'access_token' => $newAccessToken,
+                'message' => 'Token renovado'
+            ], 200);
+
         } catch (\Exception $e) {
-            return response()->json(['valid' => false, 'message' => 'Error al validar tokens', 'error' => $e->getMessage()], 500);
+            Log::error('Error en refresh: ' . $e->getMessage());
+            // Si hay error grave, limpiamos cookie
+            return response()->json(['message' => 'Error al renovar sesión'], 401)
+                ->withCookie(Cookie::forget('refresh_token'));
         }
     }
 
+    // ==========================================
+    // LOGOUT
+    // ==========================================
     public function logout(Request $request)
     {
-        try {
-            $userId = Auth::id();
-            
-            $logoutService = new Logout();
-            $logoutService->execute($userId);
+        // Obtener token de la cookie
+        $refreshToken = $request->cookie('refresh_token');
 
-            return response()->json(['message' => 'Sesión cerrada, tokens revocados y registro eliminado correctamente'], 200);
-
-        } catch (\Exception $e) {
-            Log::error('Error en logout: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al cerrar sesión', 'error' => $e->getMessage()], 500);
+        if ($refreshToken) {
+            // Eliminar de la BD
+            DB::table('tokens')->where('refresh_token', $refreshToken)->delete();
         }
+
+        // Crear cookie de borrado (expira en el pasado)
+        $cookie = Cookie::forget('refresh_token');
+
+        return response()->json(['message' => 'Sesión cerrada correctamente'], 200)
+            ->withCookie($cookie);
+    }
+
+    // ==========================================
+    // ME (Perfil)
+    // ==========================================
+    public function me()
+    {
+        $user = auth()->user(); // Esto lo llena el Middleware JWT
+
+        if (!$user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
+
+        return response()->json([
+            'id' => $user->id,
+            'username' => $user->username,
+            'rol' => [
+                'nombre' => $user->rol->nombre
+            ]
+        ]);
     }
 }

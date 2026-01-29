@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth\Services;
 
 use App\Models\User;
+use App\Models\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -12,65 +13,83 @@ use Carbon\Carbon;
 class TokenService
 {
     /**
+     * Verifica si el negocio tiene datos básicos del negocio registrados.
+     */
+    private static function checkConfiguracion(): int
+    {
+        try {
+            $config = Config::first();
+            if ($config && !empty($config->nombre_negocio) && !empty($config->ruc)) {
+                return 1;
+            }
+            return 0;
+        } catch (Exception $e) {
+            return 0;
+        }
+    }
+
+    /**
      * Genera tokens de acceso y refresh para un usuario.
      */
     public static function generateTokens(User $user, bool $rememberMe, string $ipAddress, string $userAgent): array
     {
         try {
-            $now = Carbon::now();
-
+            $now = Carbon::now('America/Lima');
             
-            $accessTTL = config('jwt.ttl'); // 5 minutos
-            $refreshTTL = $rememberMe ? (7 * 24 * 60) : (24 * 60); // minutos
+            $accessTTL = config('jwt.ttl'); // Ej: 5 min
+            $refreshTTL = $rememberMe ? (7 * 24 * 60) : (24 * 60); // 7 días o 24 horas
 
             //==================================================================================
-            //Configuracion token acceso
+            // 1. Generar Access Token (Solo en Memoria)
+            //==================================================================================
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
+            $statusConfig = ($user->id_Rol == 1) ? self::checkConfiguracion() : null;
 
-            $datos = $user->datosCliente ?? $user->datosEmpleado;
-            
-            // Access Claims
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                // Usamos el atributo dinámico que definimos en el modelo User
-                'nombre'   => $datos ? $datos->nombre : 'N/A',
+                'nombre' => $user->datos->nombre ?? 'N/A',
                 'type' => 'access',
-                'exp'  => $accessExp
+                'exp'  => $accessExp,
+                'sede_id' => $user->sede_id,
+                'nombre_sede' => $user->sede->nombre ?? 'N/A',
             ];
 
-            // Creamos el token de acceso.
+            if ($user->id_Rol == 1) {
+                $accessClaims['configurado'] = $statusConfig;
+            }
+
             $accessToken = JWTAuth::claims($accessClaims)->fromUser($user);
 
             //==================================================================================
-            //Configuracion token refresco
-
+            // 2. Generar Refresh Token (Para Base de Datos y Cookie)
+            //==================================================================================
             $refreshExp = $now->copy()->addMinutes($refreshTTL)->timestamp;
-            
-            // Refresh Claims
+
             $refreshClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'type' => 'refresh',
-                'exp'  => $refreshExp
+                'exp'  => $refreshExp,
             ];
 
-            // Creamos el token de refresco.
             $refreshToken = JWTAuth::claims($refreshClaims)->fromUser($user);
-            //==================================================================================
 
-            // Guardar en Base de Datos los tokens
+            //==================================================================================
+            // 3. Persistencia en Base de Datos (SOLO REFRESH TOKEN)
+            //==================================================================================
+            $nowStr = $now->toDateTimeString();
+            $refreshExpStr = Carbon::createFromTimestamp($refreshExp, 'America/Lima')->toDateTimeString();
+
             DB::table('tokens')->insert([
-                'usuario_id' => $user->id,
+                'id_Usuario' => $user->id,
                 'refresh_token' => $refreshToken,
-                'refresh_expires_at' => Carbon::createFromTimestamp($refreshExp),
-                'access_token' => $accessToken,
-                'access_expires_at' => Carbon::createFromTimestamp($accessExp),
+                'refresh_expires_at' => $refreshExpStr,
                 'ip_address' => $ipAddress,
                 'device' => $userAgent,
-                'created_at' => $now,
-                'updated_at' => $now,
+                'created_at' => $nowStr,
+                'updated_at' => $nowStr,
             ]);
 
             return [
@@ -91,36 +110,37 @@ class TokenService
     public static function generateAccessToken(User $user, string $ipAddress, string $userAgent, string $refreshToken): string
     {
         try {
-            $now = Carbon::now();
-            $accessTTL = config('jwt.ttl'); // 5 minutos
+            $accessTTL = config('jwt.ttl'); 
+            $now = Carbon::now('America/Lima');
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
 
-            $datos = $user->datosCliente ?? $user->datosEmpleado;
+            $statusConfig = self::checkConfiguracion();
 
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                'nombre'   => $datos ? $datos->nombre : 'N/A',
+                'nombre' => $user->datos->nombre ?? 'N/A',
+                'configurado' => $statusConfig,
                 'type' => 'access',
                 'exp'  => $accessExp
             ];
 
-            // Creamos el token de acceso.
+            // Generamos el JWT Access Token (Solo se devuelve, no se guarda)
             $newAccessToken = JWTAuth::claims($accessClaims)->fromUser($user);
+            
+            $nowStr = $now->toDateTimeString();
 
-            // Actualizar la base de datos
+            // Actualizamos la info de auditoría
             DB::table('tokens')
                 ->where('refresh_token', $refreshToken)
                 ->update([
-                    'access_token' => $newAccessToken,
-                    'access_expires_at' => Carbon::createFromTimestamp($accessExp),
                     'ip_address' => $ipAddress,
                     'device' => $userAgent,
-                    'updated_at' => $now
+                    'updated_at' => $nowStr
                 ]);
 
-            Log::info("Access token renovado en BD para usuario {$user->id}");
+            Log::info("Access token renovado con status configurado: {$statusConfig}");
 
             return $newAccessToken;
 
