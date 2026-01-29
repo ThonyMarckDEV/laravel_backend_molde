@@ -12,7 +12,7 @@ class LogoutCliente
      */
     public function execute($userId)
     {
-        $tokens = DB::table('tokens')->where('id_Usuario', $userId)->first();
+        $tokens = DB::table('tokens')->where('usuario_id', $userId)->first();
 
         if ($tokens) {
             // Intentar invalidar los tokens en JWTAuth (Blacklist)
@@ -28,7 +28,7 @@ class LogoutCliente
             }
 
             // Eliminar registro de la base de datos
-            DB::table('tokens')->where('id_Usuario', $userId)->delete();
+            DB::table('tokens')->where('usuario_id', $userId)->delete();
         }
 
         return true;

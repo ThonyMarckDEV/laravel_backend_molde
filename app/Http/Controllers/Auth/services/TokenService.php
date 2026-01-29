@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Auth\Services;
 
 use App\Models\User;
-use App\Models\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -13,19 +12,24 @@ use Carbon\Carbon;
 class TokenService
 {
     /**
-     * Verifica si el negocio tiene datos básicos del negocio registrados.
+     * Helper privado para determinar el nombre según si es Empleado o Cliente.
+     * Lógica: Si tiene ID de empleado, buscamos en la relación datosEmpleado.
+     * Si no, si tiene ID de cliente, buscamos en datosCliente.
      */
-    private static function checkConfiguracion(): int
+    private static function obtenerNombreSeguro(User $user): string
     {
-        try {
-            $config = Config::first();
-            if ($config && !empty($config->nombre_negocio) && !empty($config->ruc)) {
-                return 1;
-            }
-            return 0;
-        } catch (Exception $e) {
-            return 0;
+        // Prioridad: Empleado
+        if (!empty($user->datos_empleado_id)) {
+            // Asegurarse de que la relación esté cargada o accederla
+            return $user->datosEmpleado->nombre ?? 'Sin Nombre Empleado';
         }
+
+        // Caso: Cliente
+        if (!empty($user->datos_cliente_id)) {
+            return $user->datosCliente->nombre ?? 'Sin Nombre Cliente';
+        }
+
+        return 'Usuario Sin Datos';
     }
 
     /**
@@ -36,54 +40,50 @@ class TokenService
         try {
             $now = Carbon::now('America/Lima');
             
-            $accessTTL = config('jwt.ttl'); // Ej: 5 min
-            $refreshTTL = $rememberMe ? (7 * 24 * 60) : (24 * 60); // 7 días o 24 horas
+            $accessTTL = config('jwt.ttl'); 
+            $refreshTTL = $rememberMe ? (7 * 24 * 60) : (24 * 60); 
 
-            //==================================================================================
-            // 1. Generar Access Token (Solo en Memoria)
-            //==================================================================================
+            // 1. Obtener Nombre usando la lógica explicita
+            $nombreUser = self::obtenerNombreSeguro($user);
+
+            // ==================================================================================
+            // ACCESS TOKEN
+            // ==================================================================================
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
-            $statusConfig = ($user->id_Rol == 1) ? self::checkConfiguracion() : null;
 
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                'nombre' => $user->datos->nombre ?? 'N/A',
+                'nombre' => $nombreUser,
                 'type' => 'access',
-                'exp'  => $accessExp,
-                'sede_id' => $user->sede_id,
-                'nombre_sede' => $user->sede->nombre ?? 'N/A',
+                'exp'  => $accessExp
             ];
-
-            if ($user->id_Rol == 1) {
-                $accessClaims['configurado'] = $statusConfig;
-            }
 
             $accessToken = JWTAuth::claims($accessClaims)->fromUser($user);
 
-            //==================================================================================
-            // 2. Generar Refresh Token (Para Base de Datos y Cookie)
-            //==================================================================================
+            // ==================================================================================
+            // REFRESH TOKEN
+            // ==================================================================================
             $refreshExp = $now->copy()->addMinutes($refreshTTL)->timestamp;
 
             $refreshClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'type' => 'refresh',
-                'exp'  => $refreshExp,
+                'exp'  => $refreshExp
             ];
 
             $refreshToken = JWTAuth::claims($refreshClaims)->fromUser($user);
 
-            //==================================================================================
-            // 3. Persistencia en Base de Datos (SOLO REFRESH TOKEN)
-            //==================================================================================
+            // ==================================================================================
+            // PERSISTENCIA (SOLO REFRESH TOKEN)
+            // ==================================================================================
             $nowStr = $now->toDateTimeString();
             $refreshExpStr = Carbon::createFromTimestamp($refreshExp, 'America/Lima')->toDateTimeString();
 
             DB::table('tokens')->insert([
-                'id_Usuario' => $user->id,
+                'usuario_id' => $user->id,
                 'refresh_token' => $refreshToken,
                 'refresh_expires_at' => $refreshExpStr,
                 'ip_address' => $ipAddress,
@@ -105,7 +105,7 @@ class TokenService
     }
 
     /**
-     * Genera solo un access token nuevo (al usar el refresh token válido).
+     * Genera solo un access token nuevo.
      */
     public static function generateAccessToken(User $user, string $ipAddress, string $userAgent, string $refreshToken): string
     {
@@ -114,24 +114,23 @@ class TokenService
             $now = Carbon::now('America/Lima');
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
 
-            $statusConfig = self::checkConfiguracion();
+            // 1. Obtener Nombre usando la lógica explicita
+            $nombreUser = self::obtenerNombreSeguro($user);
 
             $accessClaims = [
                 'sub' => $user->id,
                 'rol' => $user->rol->nombre,
                 'username' => $user->username,
-                'nombre' => $user->datos->nombre ?? 'N/A',
-                'configurado' => $statusConfig,
+                'nombre' => $nombreUser,
                 'type' => 'access',
                 'exp'  => $accessExp
             ];
 
-            // Generamos el JWT Access Token (Solo se devuelve, no se guarda)
             $newAccessToken = JWTAuth::claims($accessClaims)->fromUser($user);
             
             $nowStr = $now->toDateTimeString();
 
-            // Actualizamos la info de auditoría
+            // Actualizamos auditoría del refresh token existente
             DB::table('tokens')
                 ->where('refresh_token', $refreshToken)
                 ->update([
@@ -140,7 +139,7 @@ class TokenService
                     'updated_at' => $nowStr
                 ]);
 
-            Log::info("Access token renovado con status configurado: {$statusConfig}");
+            Log::info("Access token renovado para: {$nombreUser}");
 
             return $newAccessToken;
 
