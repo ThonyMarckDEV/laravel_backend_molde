@@ -17,7 +17,7 @@ Route::middleware(['jwt.middleware'])->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
 
     //RUTAS ADMIN
-    Route::middleware(['checkRoleMW:admin'])->group(function () {
+    Route::middleware(['checkRoleMW:admin,superadmin'])->group(function () {
         
         Route::get('/roles/index', [RolController::class, 'index']);
 
