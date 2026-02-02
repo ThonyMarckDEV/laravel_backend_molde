@@ -13,18 +13,13 @@ class TokenService
 {
     /**
      * Helper privado para determinar el nombre según si es Empleado o Cliente.
-     * Lógica: Si tiene ID de empleado, buscamos en la relación datosEmpleado.
-     * Si no, si tiene ID de cliente, buscamos en datosCliente.
      */
     private static function obtenerNombreSeguro(User $user): string
     {
-        // Prioridad: Empleado
         if (!empty($user->datos_empleado_id)) {
-            // Asegurarse de que la relación esté cargada o accederla
             return $user->datosEmpleado->nombre ?? 'Sin Nombre Empleado';
         }
 
-        // Caso: Cliente
         if (!empty($user->datos_cliente_id)) {
             return $user->datosCliente->nombre ?? 'Sin Nombre Cliente';
         }
@@ -43,7 +38,6 @@ class TokenService
             $accessTTL = config('jwt.ttl'); 
             $refreshTTL = $rememberMe ? (7 * 24 * 60) : (24 * 60); 
 
-            // 1. Obtener Nombre usando la lógica explicita
             $nombreUser = self::obtenerNombreSeguro($user);
 
             // ==================================================================================
@@ -61,6 +55,9 @@ class TokenService
             ];
 
             $accessToken = JWTAuth::claims($accessClaims)->fromUser($user);
+            
+            // --- EXTRAER JTI ---
+            $accessJti = JWTAuth::setToken($accessToken)->getPayload()->get('jti');
 
             // ==================================================================================
             // REFRESH TOKEN
@@ -77,13 +74,14 @@ class TokenService
             $refreshToken = JWTAuth::claims($refreshClaims)->fromUser($user);
 
             // ==================================================================================
-            // PERSISTENCIA (SOLO REFRESH TOKEN)
+            // PERSISTENCIA (GUARDANDO JTI)
             // ==================================================================================
             $nowStr = $now->toDateTimeString();
             $refreshExpStr = Carbon::createFromTimestamp($refreshExp, 'America/Lima')->toDateTimeString();
 
             DB::table('tokens')->insert([
                 'usuario_id' => $user->id,
+                'access_token_id' => $accessJti,
                 'refresh_token' => $refreshToken,
                 'refresh_expires_at' => $refreshExpStr,
                 'ip_address' => $ipAddress,
@@ -114,7 +112,6 @@ class TokenService
             $now = Carbon::now('America/Lima');
             $accessExp = $now->copy()->addMinutes($accessTTL)->timestamp;
 
-            // 1. Obtener Nombre usando la lógica explicita
             $nombreUser = self::obtenerNombreSeguro($user);
 
             $accessClaims = [
@@ -128,12 +125,16 @@ class TokenService
 
             $newAccessToken = JWTAuth::claims($accessClaims)->fromUser($user);
             
+            // --- EXTRAER NUEVO JTI ---
+            $newJti = JWTAuth::setToken($newAccessToken)->getPayload()->get('jti');
+            
             $nowStr = $now->toDateTimeString();
 
-            // Actualizamos auditoría del refresh token existente
+            // Actualizamos auditoría y el JTI del access token permitido
             DB::table('tokens')
                 ->where('refresh_token', $refreshToken)
                 ->update([
+                    'access_token_id' => $newJti,
                     'ip_address' => $ipAddress,
                     'device' => $userAgent,
                     'updated_at' => $nowStr
