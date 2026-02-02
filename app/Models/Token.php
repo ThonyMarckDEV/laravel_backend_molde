@@ -12,6 +12,7 @@ class Token extends Model
     protected $table = 'tokens';
     protected $fillable = [
         'usuario_id',
+        'access_token_id',
         'refresh_token',
         'refresh_expires_at',
         'ip_address',

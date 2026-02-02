@@ -10,6 +10,7 @@ return new class extends Migration {
         Schema::create('tokens', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('usuario_id');
+            $table->string('access_token_id')->unique();
             $table->text('refresh_token');
             $table->timestamp('refresh_expires_at')->nullable();
             $table->string('ip_address')->nullable();
